@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Bedrooms_Must_Be_Positive</fullName>
+    <active>true</active>
+    <description>Ensures that bedrooms count is positive when specified</description>
+    <errorConditionFormula>AND(NOT(ISBLANK(Bedrooms__c)), Bedrooms__c &lt;= 0)</errorConditionFormula>
+    <errorDisplayField>Bedrooms__c</errorDisplayField>
+    <errorMessage>Number of bedrooms must be greater than 0</errorMessage>
+</ValidationRule> 

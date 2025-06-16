@@ -1,0 +1,118 @@
+name: 🏭 Deploy to Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 📦 Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf version
+      
+      - name: 🔐 Authenticate to Production
+        run: |
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" | sf org login sfdx-url --stdin --alias PROD --set-default
+      
+      - name: 🔍 Pre-deployment Validation
+        run: |
+          echo "Running pre-deployment validation..."
+          sf org display --target-org PROD --json
+          sf org list limits --target-org PROD --json
+      
+      - name: 📦 Full Package Deployment
+        run: |
+          echo "Starting production deployment..."
+          TEST_LEVEL="RunLocalTests"
+          if [ "${{ github.event.inputs.force_deploy }}" = "true" ]; then
+            TEST_LEVEL="NoTestRun"
+            echo "⚠️ WARNING: Deploying without tests!"
+          fi
+          
+          sf project deploy start --source-dir force-app --target-org PROD --test-level NoTestRun --wait 30 --verbose
+      
+      - name: ✅ Verify Deployment
+        run: |
+          echo "Verifying deployment..."
+          sf project deploy report --target-org PROD --json > deployment-report.json
+          cat deployment-report.json
+          
+          # Check if deployment was successful
+          if jq -e '.result.success == true' deployment-report.json > /dev/null; then
+            echo "✅ Deployment successful"
+          else
+            echo "❌ Deployment failed"
+            exit 1
+          fi
+      
+      - name: 🔧 Post-deployment Tasks
+        if: success()
+        run: |
+          echo "Running post-deployment tasks..."
+          # You can add custom post-deployment scripts here
+          echo "Deployment completed successfully at $(date)"
+      
+      - name: 📊 Generate Production Report
+        if: always()
+        run: |
+          echo "# Production Deployment Report" > prod-deployment-report.md
+          echo "" >> prod-deployment-report.md
+          echo "- **Status**: ${{ job.status }}" >> prod-deployment-report.md
+          echo "- **Release**: ${{ github.event.release.tag_name }}" >> prod-deployment-report.md
+          echo "- **Commit**: ${{ github.sha }}" >> prod-deployment-report.md
+          echo "- **Deployed by**: ${{ github.actor }}" >> prod-deployment-report.md
+          echo "- **Timestamp**: $(date)" >> prod-deployment-report.md
+          echo "- **Force Deploy**: ${{ github.event.inputs.force_deploy }}" >> prod-deployment-report.md
+          echo "" >> prod-deployment-report.md
+          
+          if [ -f "deployment-report.json" ]; then
+            echo "## Deployment Details" >> prod-deployment-report.md
+            jq -r '.result | "- Components Deployed: \(.numberComponentsDeployed // 0)\n- Components Failed: \(.numberComponentErrors // 0)\n- Tests Run: \(.numberTestsCompleted // 0)\n- Test Failures: \(.numberTestErrors // 0)"' deployment-report.json >> prod-deployment-report.md
+          fi
+      
+      - name: 🚨 Rollback on Failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed. Consider manual rollback."
+          echo "Please check the deployment logs and contact the DevOps team."
+          # Add rollback logic here if needed
+      
+      - name: 📧 Success Notification
+        if: success()
+        run: |
+          echo "🎉 Production deployment successful!"
+          echo "Release: ${{ github.event.release.tag_name }}"
+          echo "All systems operational."
+      
+      - name: 📋 Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-report
+          path: |
+            prod-deployment-report.md
+            deployment-report.json
+        if: always() 

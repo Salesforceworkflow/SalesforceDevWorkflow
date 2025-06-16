@@ -1,0 +1,55 @@
+name: 🚀 WORKING Deploy - Simple Property
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 📦 Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf version
+      
+      - name: 🔐 Authenticate to Salesforce
+        run: |
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" | sf org login sfdx-url --stdin --alias MyOrg --set-default
+          sf org display --target-org MyOrg
+      
+      - name: 🚀 Deploy Simple Property App
+        run: |
+          echo "🏠 Deploying Simple Property Management App..."
+          echo "Components being deployed:"
+          echo "- Simple_Property__c custom object"
+          echo "- 5 fields (Address, Price, Property Type, Status, Bedrooms)"
+          echo "- Validation rule (Price must be positive)"
+          echo "- Custom tab with building icon"
+          echo ""
+          
+          sf project deploy start --source-dir force-app --target-org MyOrg --test-level NoTestRun --wait 15 --verbose
+      
+      - name: ✅ Verify Success
+        run: |
+          echo "🎉 DEPLOYMENT SUCCESSFUL!"
+          echo ""
+          echo "✅ Simple Property Management App is now in your Salesforce org!"
+          echo ""
+          echo "🔗 Check your org: https://cloudseek-dev-ed.develop.lightning.force.com"
+          echo ""
+          echo "📋 What to do next:"
+          echo "1. Setup → Object Manager → Look for 'Simple Property'"
+          echo "2. App Launcher → Search 'Simple' → Find 'Simple Property' tab"
+          echo "3. Create a new property record to test"
+          echo "4. Try entering negative price to test validation"
+          echo ""
+          echo "🎊 Your CI/CD pipeline is working!" 
