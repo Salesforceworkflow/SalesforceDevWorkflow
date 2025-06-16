@@ -13,7 +13,7 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Get full history for better debugging
+          fetch-depth: 0
       
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@v4
@@ -26,7 +26,6 @@ jobs:
           echo "🔧 Installing latest Salesforce CLI..."
           npm install -g @salesforce/cli@latest
           sf version --verbose
-          sf plugins --core
           echo "✅ CLI installation completed"
       
       - name: 🔍 Complete Environment Debug
@@ -34,18 +33,8 @@ jobs:
           echo "🔍 === ENVIRONMENT DEBUG ==="
           echo "OS: $(uname -a)"
           echo "Node: $(node --version)"
-          echo "NPM: $(npm --version)"
           echo "Branch: ${{ github.ref_name }}"
-          echo "Commit: ${{ github.sha }}"
           echo "Repo: ${{ github.repository }}"
-          echo "Event: ${{ github.event_name }}"
-          echo "Workspace: $(pwd)"
-          echo ""
-          echo "📁 Project files:"
-          ls -la
-          echo ""
-          echo "📂 Force-app structure:"
-          find force-app -type f -name "*.cls" || echo "No existing classes found"
           echo ""
           echo "🔐 Checking secret availability..."
           if [ -z "${{ secrets.SALESFORCE_AUTH_URL }}" ]; then
@@ -53,12 +42,11 @@ jobs:
             echo "📋 To fix this:"
             echo "1. Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
             echo "2. Add secret named: SALESFORCE_AUTH_URL"
-            echo "3. Use the auth URL format: force://PlatformCLI::..."
+            echo "3. Use value: force://PlatformCLI::5Aep861iCXbTx3lghQS69r1Dtg.l29CR56jv_EeVJj_dLN7lS5ELw.D6K59BAvpA0hDrb_nkjDSa8g.JBv5N0Mq@cloudseek-dev-ed.develop.my.salesforce.com"
             exit 1
           else
             echo "✅ SALESFORCE_AUTH_URL secret exists"
             echo "Length: ${#SALESFORCE_AUTH_URL} characters"
-            echo "Prefix: ${SALESFORCE_AUTH_URL:0:20}..."
           fi
         env:
           SALESFORCE_AUTH_URL: ${{ secrets.SALESFORCE_AUTH_URL }}
@@ -67,34 +55,15 @@ jobs:
         run: |
           echo "🔐 === SALESFORCE AUTHENTICATION ==="
           echo "Target: cloudseek-dev-ed.develop.my.salesforce.com"
-          echo ""
           
-          # Create auth file for better debugging
+          # Create auth file for more reliable authentication
           echo "${{ secrets.SALESFORCE_AUTH_URL }}" > auth_url.txt
           
-          echo "🔗 Auth URL format check:"
-          if [[ "${{ secrets.SALESFORCE_AUTH_URL }}" == force://PlatformCLI::* ]]; then
-            echo "✅ Auth URL format appears correct"
-          else
-            echo "⚠️  WARNING: Auth URL might have wrong format"
-            echo "Expected: force://PlatformCLI::..."
-            echo "Got: ${SALESFORCE_AUTH_URL:0:50}..."
-          fi
-          
-          echo ""
           echo "🔓 Attempting authentication..."
-          
-          # Try authentication with file input (more reliable)
           sf org login sfdx-url --sfdx-url-file auth_url.txt --alias TargetOrg --set-default
           
-          echo ""
           echo "✅ Authentication successful!"
-          echo ""
-          echo "📊 Org information:"
           sf org display --target-org TargetOrg
-          echo ""
-          echo "📋 All authenticated orgs:"
-          sf org list
           
           # Clean up auth file
           rm -f auth_url.txt
@@ -104,36 +73,24 @@ jobs:
       - name: 🧪 Create Ultra-Simple Test Class
         run: |
           echo "🧪 === CREATING DEPLOYMENT TEST CLASS ==="
-          
-          # Ensure directory exists
           mkdir -p force-app/main/default/classes
           
-          echo "📝 Creating DeploymentTest.cls..."
           cat > force-app/main/default/classes/DeploymentTest.cls << 'EOF'
           /**
            * Ultra-simple test class for CI/CD verification
            * Zero dependencies - guaranteed to deploy
-           * Created by GitHub Actions workflow
            */
           public class DeploymentTest {
-              
-              /**
-               * Simple method that returns deployment timestamp
-               */
               public static String getDeploymentInfo() {
                   return 'Successfully deployed on: ' + System.now().format('yyyy-MM-dd HH:mm:ss');
               }
               
-              /**
-               * Another simple method for verification
-               */
               public static Boolean isWorking() {
                   return true;
               }
           }
           EOF
           
-          echo "📄 Creating metadata file..."
           cat > force-app/main/default/classes/DeploymentTest.cls-meta.xml << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -143,58 +100,31 @@ jobs:
           EOF
           
           echo "✅ Files created successfully!"
-          echo ""
           echo "📋 File verification:"
-          echo "=== DeploymentTest.cls ==="
           cat force-app/main/default/classes/DeploymentTest.cls
-          echo ""
-          echo "=== DeploymentTest.cls-meta.xml ==="
-          cat force-app/main/default/classes/DeploymentTest.cls-meta.xml
-          echo ""
-          echo "📁 Directory structure:"
-          find force-app -type f
       
       - name: 🚀 Deploy to Salesforce (No Tests)
         run: |
           echo "🚀 === SALESFORCE DEPLOYMENT ==="
           echo "Method: Deploy without running tests (fastest)"
-          echo "Target: TargetOrg (cloudseek-dev-ed.develop.my.salesforce.com)"
-          echo ""
+          echo "Target: TargetOrg"
           
-          # Deploy with maximum verbosity and no tests
           sf project deploy start \
             --source-dir force-app \
             --target-org TargetOrg \
             --test-level NoTestRun \
-            --wait 20 \
-            --verbose \
-            --json > deployment_result.json
+            --wait 15 \
+            --verbose
           
-          echo ""
-          echo "📊 Deployment result:"
-          cat deployment_result.json
-          echo ""
-          
-          # Check if deployment was successful
-          if sf project deploy start --source-dir force-app --target-org TargetOrg --test-level NoTestRun --wait 20 --verbose; then
-            echo "✅ DEPLOYMENT SUCCESSFUL!"
-          else
-            echo "❌ DEPLOYMENT FAILED!"
-            echo "📋 Checking deployment status..."
-            sf project deploy resume --target-org TargetOrg || true
-            exit 1
-          fi
+          echo "✅ DEPLOYMENT SUCCESSFUL!"
       
       - name: ✅ Verify Deployment Success
         run: |
           echo "✅ === DEPLOYMENT VERIFICATION ==="
-          echo ""
           
           echo "🔍 Testing deployed class..."
           sf apex run --target-org TargetOrg --code "System.debug('Test: ' + DeploymentTest.getDeploymentInfo());"
           
-          echo ""
-          echo "🎯 Verification complete!"
           echo ""
           echo "🎉 === SUCCESS SUMMARY ==="
           echo "✅ Authentication: PASSED"
@@ -208,10 +138,3 @@ jobs:
           echo "📍 Navigate to: Setup → Apex Classes → DeploymentTest"
           echo ""
           echo "🎯 Your CI/CD pipeline is now working!"
-      
-      - name: 🧹 Cleanup (Always Run)
-        if: always()
-        run: |
-          echo "🧹 Cleaning up temporary files..."
-          rm -f auth_url.txt deployment_result.json
-          echo "✅ Cleanup completed" 
