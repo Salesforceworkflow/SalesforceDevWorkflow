@@ -1,0 +1,98 @@
+name: 🔍 Debug Deployment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-deployment:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 📦 Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf version
+      
+      - name: 🔍 Debug: Check Secret Value
+        run: |
+          echo "Checking if secret exists..."
+          if [ -z "${{ secrets.SALESFORCE_AUTH_URL }}" ]; then
+            echo "❌ SALESFORCE_AUTH_URL secret is empty or not set"
+            exit 1
+          else
+            echo "✅ SALESFORCE_AUTH_URL secret exists and has content"
+            echo "Secret length: ${#SALESFORCE_AUTH_URL}"
+          fi
+        env:
+          SALESFORCE_AUTH_URL: ${{ secrets.SALESFORCE_AUTH_URL }}
+      
+      - name: 🔐 Test Authentication
+        run: |
+          echo "Testing Salesforce authentication..."
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" | sf org login sfdx-url --stdin --alias DebugOrg --set-default
+          echo "✅ Authentication successful!"
+          sf org display --target-org DebugOrg
+          sf org list
+      
+      - name: 📋 Check Project Structure
+        run: |
+          echo "📁 Project structure:"
+          find force-app -type f -name "*.cls" -o -name "*.xml" | head -20
+          echo ""
+          echo "📊 File count:"
+          find force-app -name "*.cls" | wc -l
+          echo "Classes found"
+      
+      - name: 🧪 Create Simple Test Class
+        run: |
+          echo "Creating a simple test class that will definitely work..."
+          mkdir -p force-app/main/default/classes
+          
+          cat > force-app/main/default/classes/HelloWorld.cls << 'EOF'
+          public class HelloWorld {
+              public static String sayHello() {
+                  return 'Hello from CI/CD!';
+              }
+          }
+          EOF
+          
+          cat > force-app/main/default/classes/HelloWorld.cls-meta.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+              <apiVersion>59.0</apiVersion>
+              <status>Active</status>
+          </ApexClass>
+          EOF
+          
+          echo "✅ Created HelloWorld class"
+      
+      - name: 🚀 Deploy Simple Class
+        run: |
+          echo "🚀 Deploying simple HelloWorld class..."
+          sf project deploy start --source-dir force-app/main/default/classes/HelloWorld.cls --target-org DebugOrg --test-level NoTestRun --wait 10 --verbose
+      
+      - name: ✅ Verify Simple Deployment
+        run: |
+          echo "✅ Testing simple deployment..."
+          sf apex run --target-org DebugOrg --code "System.debug(HelloWorld.sayHello());"
+          echo "🎉 SUCCESS! Basic deployment is working!"
+      
+      - name: 🚀 Try Full Deployment
+        run: |
+          echo "🚀 Now trying full project deployment..."
+          sf project deploy start --source-dir force-app --target-org DebugOrg --test-level NoTestRun --wait 15 --verbose
+        continue-on-error: true
+      
+      - name: 📊 Final Status
+        run: |
+          echo "🎯 Deployment test completed!"
+          echo "Check the logs above to see what worked and what failed."
+          sf org list metadata --target-org DebugOrg --metadata-type ApexClass 
