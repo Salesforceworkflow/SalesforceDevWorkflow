@@ -1,0 +1,99 @@
+name: 🎯 FIXED Deployment - Master Branch
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]  # Using MASTER not main
+
+jobs:
+  fixed-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 📦 Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf version
+      
+      - name: 🔍 Debug Secret
+        run: |
+          echo "Checking secret..."
+          if [ -z "${{ secrets.SALESFORCE_AUTH_URL }}" ]; then
+            echo "❌ Secret is empty!"
+            exit 1
+          fi
+          echo "✅ Secret exists with length: ${#SALESFORCE_AUTH_URL}"
+          echo "First 20 chars: ${SALESFORCE_AUTH_URL:0:20}"
+        env:
+          SALESFORCE_AUTH_URL: ${{ secrets.SALESFORCE_AUTH_URL }}
+      
+      - name: 🔐 Test Authentication Multiple Ways
+        run: |
+          echo "=== Method 1: Standard Auth ==="
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" | sf org login sfdx-url --stdin --alias FixedOrg --set-default || echo "Method 1 failed"
+          
+          echo "=== Method 2: File Auth ==="
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" > auth.txt
+          sf org login sfdx-url --sfdx-url-file auth.txt --alias FixedOrg2 || echo "Method 2 failed"
+          rm -f auth.txt
+          
+          echo "=== Method 3: Direct Web Auth ==="
+          sf org login web --alias FixedOrg3 --instance-url https://cloudseek-dev-ed.develop.lightning.force.com || echo "Method 3 failed"
+          
+          echo "=== Checking which method worked ==="
+          sf org list
+      
+      - name: 🧪 Create Minimal Test Class
+        run: |
+          echo "Creating absolutely minimal Apex class..."
+          mkdir -p force-app/main/default/classes
+          
+          # Create the simplest possible Apex class
+          cat > force-app/main/default/classes/CiCdTest.cls << 'EOF'
+          public class CiCdTest {
+              public static String test() {
+                  return 'CI/CD Working!';
+              }
+          }
+          EOF
+          
+          cat > force-app/main/default/classes/CiCdTest.cls-meta.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+              <apiVersion>59.0</apiVersion>
+              <status>Active</status>
+          </ApexClass>
+          EOF
+          
+          echo "✅ Created CiCdTest class"
+          cat force-app/main/default/classes/CiCdTest.cls
+      
+      - name: 🚀 Deploy Minimal Class
+        run: |
+          echo "🚀 Deploying minimal test class..."
+          sf project deploy start \
+            --source-dir force-app/main/default/classes/CiCdTest.cls \
+            --target-org FixedOrg \
+            --test-level NoTestRun \
+            --wait 10 \
+            --verbose
+      
+      - name: ✅ Test Deployment Success
+        run: |
+          echo "✅ Testing deployed class..."
+          sf apex run --target-org FixedOrg --code "System.debug(CiCdTest.test());"
+          echo "🎉 SUCCESS! Deployment is working!"
+          
+          echo "📊 Org Info:"
+          sf org display --target-org FixedOrg
+          
+          echo "📋 Deployed Classes:"
+          sf org list metadata --target-org FixedOrg --metadata-type ApexClass 
