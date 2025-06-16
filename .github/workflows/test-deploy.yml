@@ -1,0 +1,54 @@
+name: 🧪 Test Deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  test-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 📦 Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf version
+      
+      - name: 🔐 Authenticate to Salesforce
+        run: |
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" | sf org login sfdx-url --stdin --alias TestOrg --set-default
+          sf org display --target-org TestOrg
+      
+      - name: 📋 List Existing Metadata
+        run: |
+          echo "📋 Checking what's in the project:"
+          ls -la force-app/main/default/
+          echo ""
+          echo "🔍 Apex Classes:"
+          ls -la force-app/main/default/classes/ || echo "No classes found"
+          echo ""
+          echo "📦 Objects:"
+          ls -la force-app/main/default/objects/ || echo "No objects found"
+      
+      - name: 🚀 Deploy to Salesforce
+        run: |
+          echo "🚀 Deploying PropertyTriggerHandler and Test classes..."
+          sf project deploy start --source-dir force-app --target-org TestOrg --test-level NoTestRun --wait 15 --verbose
+      
+      - name: ✅ Verify Deployment
+        run: |
+          echo "✅ Deployment completed!"
+          echo "🔍 Checking deployed components..."
+          sf org list metadata --target-org TestOrg --metadata-type ApexClass
+          echo ""
+          echo "🎉 SUCCESS! Your CI/CD pipeline is working!"
+          echo "📱 Check your Salesforce org: https://cloudseek-dev-ed.develop.lightning.force.com" 

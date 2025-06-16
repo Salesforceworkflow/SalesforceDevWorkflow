@@ -1,4 +1,44 @@
-https://github.com/Salesforceworkflow/SalesforceDevWorkflowhelp you with the final push or set up the GitHub Secrets for automated deployments?# 🔐 GitHub Authentication & Authorization Setup
+https://github.com/Salesforceworkflow/SalesforceDevWorkflowhelp you with the final push or set up the GitHub Secrets for automated deployments?name: Deploy to Salesforce
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install Salesforce CLI
+      run: |
+        npm install -g @salesforce/cli
+        sf version
+        
+    - name: Authenticate to Salesforce
+      run: |
+        echo "${{ secrets.SALESFORCE_AUTH_URL }}" > authfile.txt
+        sf org login sfdx-url --sfdx-url-file authfile.txt --alias target-org --set-default
+        rm authfile.txt
+        
+    - name: Deploy Simple Property App
+      run: |
+        echo "Deploying Simple Property Management App..."
+        sf project deploy start --source-dir force-app --target-org target-org --wait 15 --verbose
+        
+    - name: Verify Deployment
+      run: |
+        echo "Verifying deployment..."
+        sf org list
+        echo "✅ Simple Property Management App deployed successfully!" # 🔐 GitHub Authentication & Authorization Setup
 
 ## 🚨 PROBLEM: Git Not Pushing Changes to GitHub
 
