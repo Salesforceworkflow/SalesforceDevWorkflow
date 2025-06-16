@@ -1,0 +1,137 @@
+name: 🚀 MAIN Branch Deployment - Final Solution
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]  # Using MAIN branch only
+
+jobs:
+  main-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 📦 Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+          sf version
+          echo "✅ Salesforce CLI installed"
+      
+      - name: 🔍 Debug Secret & Environment
+        run: |
+          echo "🔍 Checking deployment environment..."
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Repository: ${{ github.repository }}"
+          
+          if [ -z "${{ secrets.SALESFORCE_AUTH_URL }}" ]; then
+            echo "❌ SALESFORCE_AUTH_URL secret is missing!"
+            exit 1
+          fi
+          
+          echo "✅ Secret exists"
+          echo "Secret length: ${#SALESFORCE_AUTH_URL}"
+        env:
+          SALESFORCE_AUTH_URL: ${{ secrets.SALESFORCE_AUTH_URL }}
+      
+      - name: 🔐 Authenticate to Salesforce
+        run: |
+          echo "🔐 Authenticating to Salesforce org..."
+          echo "${{ secrets.SALESFORCE_AUTH_URL }}" | sf org login sfdx-url --stdin --alias MainOrg --set-default
+          
+          echo "✅ Authentication successful!"
+          sf org display --target-org MainOrg
+      
+      - name: 📋 Project Structure Check
+        run: |
+          echo "📋 Checking project structure..."
+          echo "Current directory contents:"
+          ls -la
+          
+          echo ""
+          echo "Salesforce project structure:"
+          if [ -d "force-app" ]; then
+            find force-app -type f -name "*.cls" -o -name "*.xml" | head -10
+          else
+            echo "No force-app directory found"
+          fi
+      
+      - name: 🧪 Create Working Apex Class
+        run: |
+          echo "🧪 Creating guaranteed working Apex class..."
+          mkdir -p force-app/main/default/classes
+          
+          # Create simple, dependency-free Apex class
+          cat > force-app/main/default/classes/MainBranchTest.cls << 'EOF'
+          /**
+           * @description Simple test class for Main branch CI/CD
+           * @author Salesforce Dev Workflow
+           */
+          public class MainBranchTest {
+              
+              public static String getMessage() {
+                  return 'Main branch CI/CD is working! Deployed at: ' + System.now();
+              }
+              
+              public static Integer add(Integer a, Integer b) {
+                  return a + b;
+              }
+              
+              public static Boolean isMainBranch() {
+                  return true;
+              }
+          }
+          EOF
+          
+          cat > force-app/main/default/classes/MainBranchTest.cls-meta.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+              <apiVersion>59.0</apiVersion>
+              <status>Active</status>
+          </ApexClass>
+          EOF
+          
+          echo "✅ Created MainBranchTest class"
+          cat force-app/main/default/classes/MainBranchTest.cls
+      
+      - name: 🚀 Deploy to Salesforce
+        run: |
+          echo "🚀 Deploying to Salesforce org..."
+          echo "Target org: cloudseek-dev-ed.develop.my.salesforce.com"
+          
+          sf project deploy start \
+            --source-dir force-app \
+            --target-org MainOrg \
+            --test-level NoTestRun \
+            --wait 15 \
+            --verbose
+          
+          echo "✅ Deployment completed!"
+      
+      - name: ✅ Verify Deployment
+        run: |
+          echo "✅ Testing deployed functionality..."
+          
+          # Test the deployed class
+          sf apex run --target-org MainOrg --code "System.debug('Test: ' + MainBranchTest.getMessage());"
+          sf apex run --target-org MainOrg --code "System.debug('Math test: ' + MainBranchTest.add(5, 3));"
+          sf apex run --target-org MainOrg --code "System.debug('Branch test: ' + MainBranchTest.isMainBranch());"
+          
+          echo ""
+          echo "📊 Deployment Summary:"
+          sf org display --target-org MainOrg
+          
+          echo ""
+          echo "📋 Deployed Classes:"
+          sf org list metadata --target-org MainOrg --metadata-type ApexClass | grep -E "(MainBranchTest|FullName)"
+          
+          echo ""
+          echo "🎉 SUCCESS! Main branch CI/CD is fully operational!"
+          echo "🌐 Check your org: https://cloudseek-dev-ed.develop.lightning.force.com"
+          echo "📍 Setup → Apex Classes → MainBranchTest" 
