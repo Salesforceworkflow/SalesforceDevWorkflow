@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customObject>true</customObject>
+    <description>Lease Management Tab for Luxe Property Management System</description>
+    <icon>standard:contract</icon>
+    <label>Leases</label>
+    <motif>Custom20: Contract</motif>
+</CustomTab> 

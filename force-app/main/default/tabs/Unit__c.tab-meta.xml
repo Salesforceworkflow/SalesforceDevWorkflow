@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customObject>true</customObject>
+    <description>Unit Management Tab for Luxe Property Management System</description>
+    <icon>standard:home</icon>
+    <label>Units</label>
+    <motif>Custom19: Home</motif>
+</CustomTab> 
